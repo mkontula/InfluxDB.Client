@@ -1,0 +1,9 @@
+# top-most .editorconfig
+root = true
+
+[*]
+end_of_line = lf
+
+[*.cs]
+indent_style = space
+indent_size = 3
