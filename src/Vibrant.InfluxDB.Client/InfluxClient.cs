@@ -29,6 +29,7 @@ namespace Vibrant.InfluxDB.Client
       private readonly HttpClient _client;
       private readonly HttpClientHandler _handler;
       private bool _disposed;
+      private bool _disposeHttpClient;
 
       /// <summary>
       /// Constructs an InfluxClient that uses the specified credentials.
@@ -36,27 +37,48 @@ namespace Vibrant.InfluxDB.Client
       /// <param name="endpoint"></param>
       /// <param name="username"></param>
       /// <param name="password"></param>
-      public InfluxClient( Uri endpoint, string username, string password )
+      public InfluxClient( Uri endpoint, string username, string password ) : this( null, endpoint, username, password )
       {
-         _handler = new HttpClientHandler();
-         _handler.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
 
-         _client = new HttpClient( _handler, false );
+      }
+      /// <summary>
+      /// Constructs an InfluxClient that uses the specified credentials and HttpClient that's lifetime managed by caller.
+      /// </summary>
+      /// <param name="httpClient"></param>
+      /// <param name="endpoint"></param>
+      /// <param name="username"></param>
+      /// <param name="password"></param>
+      public InfluxClient( HttpClient httpClient, Uri endpoint, string username, string password )
+      {
+         if (httpClient == null)
+         {
+            _handler = new HttpClientHandler
+            {
+               AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip
+            };
+            _client = new HttpClient( _handler, false ) { BaseAddress = endpoint };
+            // only dispose HttpClient if we created it ourself.
+            _disposeHttpClient = true;
+         }
+         else
+         {
+            _client = httpClient;
+         }
+
          _client.BaseAddress = endpoint;
-
          _seriesMetaCache = new Dictionary<DatabaseMeasurementInfoKey, DatabaseMeasurementInfo>();
 
          DefaultWriteOptions = new InfluxWriteOptions();
          DefaultQueryOptions = new InfluxQueryOptions();
          TimestampParserRegistry = new DefaultTimestampParserRegistry();
 
-         if( !string.IsNullOrEmpty( username ) && !string.IsNullOrEmpty( password ) )
+         if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
          {
-            var encoding = Encoding.GetEncoding( "ISO-8859-1" );
+            var encoding = Encoding.GetEncoding("ISO-8859-1");
             var credentials = username + ":" + password;
-            var encodedCredentialBytes = encoding.GetBytes( credentials );
-            var encodedCredentials = Convert.ToBase64String( encodedCredentialBytes );
-            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", encodedCredentials );
+            var encodedCredentialBytes = encoding.GetBytes(credentials);
+            var encodedCredentials = Convert.ToBase64String(encodedCredentialBytes);
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encodedCredentials);
          }
       }
 
@@ -1217,7 +1239,8 @@ namespace Vibrant.InfluxDB.Client
       {
          if( disposing )
          {
-            _client.Dispose();
+            // do not dispose HttpClient if it's managed from outside.
+            if(_disposeHttpClient) _client.Dispose();
             _handler.Dispose();
          }
       }
